@@ -22,9 +22,11 @@ import           MoneyMachine.Strategy
 import           MoneyMachine.TechnicalAnalysis
 import           OANDA
 import           System.Environment
+import           System.IO
 import           Text.Printf
 
 main = do
+  hSetBuffering stdout LineBuffering
   cargs <- getArgs
   let granularity = getGran $ cargs !! 0
   let instName = cargs !! 1
