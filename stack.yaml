@@ -40,10 +40,10 @@ packages:
 - .
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-#- location:
-#    git: https://github.com/jrciii/talib.git
-#    commit: 519060f8e208871d635b9462a3ef325693b3b034
-#  extra-dep: true
+- location:
+    git: https://github.com/jrciii/talib.git
+    commit: 519060f8e208871d635b9462a3ef325693b3b034
+  extra-dep: true
 
 extra-deps:
 - oanda-rest-api-0.4.1
@@ -68,8 +68,8 @@ extra-package-dbs: []
 # Extra directories used by stack for building
 #extra-include-dirs:
 #- C:\ta-lib\c\include
-#extra-lib-dirs:
-#- C:\ta-lib2\c\lib
+extra-lib-dirs:
+- /usr/local/lib
 
 #
 # Allow a newer minor version of GHC than the snapshot specifies
