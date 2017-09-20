@@ -4,6 +4,7 @@ module Backtest where
 import           Data.KdTree.Static
 import qualified Data.List                      as L
 import qualified Data.Map                       as M
+import           Data.TALib
 import qualified Data.Text                      as T
 import qualified Data.Thyme.Time                as THT
 import qualified Data.Thyme.Time.Core           as THC
@@ -29,6 +30,7 @@ main = runBacktest
 
 runBacktest :: IO ()
 runBacktest = do
+  c_ta_init
   (env,aid) <- getPracticeEnv
   cargs <- getArgs
   let granularity = getGran $ cargs !! 0
