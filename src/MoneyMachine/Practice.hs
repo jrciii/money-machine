@@ -22,6 +22,7 @@ import qualified MoneyMachine.Order     as MO
 import           MoneyMachine.Strategy
 import           MoneyMachine.Trade
 import           OANDA
+import           Text.Printf
 {-# ANN module ("HLint: ignore Redundant bracket"::String) #-}
 
 practice :: OandaEnv -> AccountID -> CandlestickGranularity -> [String] -> Strategy -> IO ()
@@ -74,13 +75,13 @@ placeOrders env orders = -}
 createOrderDetails :: MO.Order -> OrderRequest
 createOrderDetails order =
     let sl = Just StopLossDetails
-           { stopLossDetailsPrice = T.pack $ show $ (\(MO.Price p) -> p) $ (fromJust $ order^.MO.stopLoss)
+           { stopLossDetailsPrice = T.pack $ printf "%.5f" ((\(MO.Price p) -> p) (fromJust $ order^.MO.stopLoss))
            , stopLossDetailsTimeInForce = GTC
            , stopLossDetailsGtdTime = OandaZonedTime $ THT.utcToZonedTime (THTC.hoursToTimeZone 0) $ THT.posixSecondsToUTCTime $ fromIntegral 0
            , stopLossDetailsClientExtensions = Nothing
            }
         tp = Just TakeProfitDetails
-           { takeProfitDetailsPrice = T.pack $ show $ (\(MO.Price p) -> p) $ (fromJust $ order^.MO.takeProfit)
+           { takeProfitDetailsPrice = T.pack $ printf "%.5" ((\(MO.Price p) -> p) (fromJust $ order^.MO.takeProfit))
            , takeProfitDetailsTimeInForce = GTC
            , takeProfitDetailsGtdTime = OandaZonedTime $ THT.utcToZonedTime (THTC.hoursToTimeZone 0) $ THT.posixSecondsToUTCTime $ fromIntegral 0
            , takeProfitDetailsClientExtensions = Nothing
