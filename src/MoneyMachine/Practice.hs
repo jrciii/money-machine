@@ -81,7 +81,7 @@ createOrderDetails order =
            , stopLossDetailsClientExtensions = Nothing
            }
         tp = Just TakeProfitDetails
-           { takeProfitDetailsPrice = T.pack $ printf "%.5" ((\(MO.Price p) -> p) (fromJust $ order^.MO.takeProfit))
+           { takeProfitDetailsPrice = T.pack $ printf "%.5f" ((\(MO.Price p) -> p) (fromJust $ order^.MO.takeProfit))
            , takeProfitDetailsTimeInForce = GTC
            , takeProfitDetailsGtdTime = OandaZonedTime $ THT.utcToZonedTime (THTC.hoursToTimeZone 0) $ THT.posixSecondsToUTCTime $ fromIntegral 0
            , takeProfitDetailsClientExtensions = Nothing
