@@ -88,7 +88,7 @@ clusterStratOnTick starttime market (Spread (Points spread)) commission os newTr
       let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl) (ePrice + esl*3)]
                  | (gsl > spread) && (fgsma < mgsma && mgsma < sgsma) && (gPrice > (head gClust)) && (ePrice < (last eClust)) && (gSRNumL >= eSRNumU) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - gsl) (gPrice + gsl*3)]
                  | (esl > spread) && (fesma > mesma && mesma > sesma) && (ePrice < (last eClust)) && (gPrice > (head gClust)) && (eSRNumU <= gSRNumL) = [makeOrder Short "EUR_USD" ePrice (-1000) (ePrice + esl) (ePrice - esl*3)]
-                 | (gsl > spread) && (fesma > mesma && mesma > sesma) && (gPrice < (last gClust)) && (ePrice > (head eClust)) && (gSRNumU <= eSRNumL) = [makeOrder Short "GBP_USD" gPrice (-1000) (gPrice + gsl) (gPrice + gsl*3)]
+                 | (gsl > spread) && (fgsma > mgsma && mgsma > sgsma) && (gPrice < (last gClust)) && (ePrice > (head eClust)) && (gSRNumU <= eSRNumL) = [makeOrder Short "GBP_USD" gPrice (-1000) (gPrice + gsl) (gPrice + gsl*3)]
                  |  otherwise = []
       --let result | (ePrice > ecl) && (gPrice < gcl) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - 0.0055) (ePrice + 0.009)]
       --           | (gPrice > gcl) && (ePrice < ecl) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - 0.0055) (gPrice + 0.009)]
