@@ -68,19 +68,8 @@ runBacktest = do
   let last5init = reverse . (take 5) . reverse $ inits
   let kdTree = makeKdt inits
   let kn = kNearest kdTree 2 end
-  putStrLn "=====5 before end"
-  mapM_ (putStrLn . (++"\n") . show) last5init
-  putStrLn "=====End"
-  putStrLn $ show end
-  putStrLn "=====Nearest S/R"
-  putStrLn $ show $ kn !! 0
-  putStrLn "=====Second nearest S/R"
-  putStrLn $ show $ kn !! 1
-  putStrLn "\n\n\n\n\n"
   let prices = candlesAsPrices tickCandles
   let sr = kmeansSRo tickCandles srlines
-  putStrLn $ show $ length sr
-  --let sr = [1.2,1.3]
   zt <- getZonedTime
   let time = zonedTimeToLocalTime zt
   profit <- backtest time filled (clusterStrategy ws) (Spread (Points 0.00015)) (Commission 0.0)
