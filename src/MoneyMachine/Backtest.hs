@@ -1,37 +1,52 @@
 module MoneyMachine.Backtest where
-import qualified Data.HashMap.Lazy          as HM
-import qualified Data.List                  as L
+
+import           Control.Monad
+import Control.Monad.IO.Class
+import           Control.Monad.Trans.RWS.Strict
+import qualified Data.HashMap.Lazy            as HM
+import qualified Data.List                    as L
 import           Data.Maybe
-import           Data.Time.LocalTime
-import           Debug.Trace
+import qualified Data.Sequence                as S
 import           MoneyMachine.Candle
-import           MoneyMachine.Chart
-import           MoneyMachine.MarketHistory
+import           MoneyMachine.HistData
 import           MoneyMachine.Order
 import           MoneyMachine.Strategy
 import           MoneyMachine.Trade
 
-data BacktestResult = BacktestResult
-  { }
+data Env = Env
+           { _spread     :: !Spread
+           , _commission :: !Commission
+           }
 
-backtest :: LocalTime -> [(String, [Maybe Candle])] -> Strategy -> Spread -> Commission -> IO Double
-backtest startTime instruments strat spread commission =
-  let windowed = makeWindows (_windowSize strat) instruments
-      openOrdersAndTradesIO = L.foldl' (\(ioOrdersTrades) window -> checkOpenOrdersAndMakeNewOrders startTime ioOrdersTrades strat spread commission window) (return ([],[])) windowed
-  in do
-     (openOrders,trades) <- openOrdersAndTradesIO
-     return $ L.foldl' (\profit trade -> profit + (traceThis((\(Points p) -> p) (_tradeProfit trade)) - ((\( Spread (Points s)) -> s) spread))) 0 trades
+backtest :: Strategy -> [String] -> [String] -> Int -> IO Double
+backtest strat files instLabels ws = do
+    contents <- mapM readFile files
+    let lined = map (drop 1 . lines) contents
+    let parsed = map (map $ Just . histDataToCandle) lined
+    let windowed = map (window ws) parsed
+    let zipped = map (\(a,b) -> map (\x -> (a,x)) b) $ zip instLabels windowed
+    let transposed = L.transpose zipped
+    let env = Env {_spread = Spread (Points 0.00015), _commission = Commission 0.0}
+    --putStrLn $ show $ fromJust $ L.find ((/=1) . L.length)  $ ((map L.nub) . (map (map (map _candleTime))) . (map (map snd))) transposed
+    --putStrLn $ show $ takeR 3 transposed
+    ((openOrders,trades),log) <- execRWST (runBacktest strat transposed) env ([],[])
+    return $ L.foldl' (\profit trade -> profit + ((\(Points p) -> p) (_tradeProfit trade)) - ((\( Spread (Points s)) -> s) (_spread env))) 0 trades
 
-checkOpenOrdersAndMakeNewOrders :: LocalTime -> IO ([Order],[Trade]) -> Strategy -> Spread -> Commission -> [(String,[Maybe Candle])] -> IO ([Order],[Trade])
-checkOpenOrdersAndMakeNewOrders startTime ioOrdersTrades strat spread commission window =
-  do
-      (orders,trades) <- ioOrdersTrades
-      let (unclosedOrders,newTrades) = checkOpenOrders orders window
-      let newIoOrders = (_onTick strat) startTime (HM.fromList window) spread commission unclosedOrders []
-      newOrders <- newIoOrders
-      return (unclosedOrders ++ newOrders,trades ++ newTrades)
+runBacktest :: Strategy -> [[(String,[Maybe Candle])]] -> RWST Env (S.Seq String) ([Order],[Trade]) IO ()
+runBacktest _ [] = do return ()
+runBacktest strat (w:ws) =
+    do Env spread commission <- ask
+       (openOrders,existingTrades) <- get
+       let (remainingOrders,newTrades) = checkOpenOrders openOrders w
+       let market = HM.fromList w
+       let trades = existingTrades ++ newTrades
+       newOrders <- liftIO $ (_onTick strat) market spread commission remainingOrders trades
+       put (remainingOrders ++ newOrders,trades)
+       runBacktest strat ws
+
 
 checkOpenOrders :: [Order] -> [(String,[Maybe Candle])] -> ([Order],[Trade])
+checkOpenOrders [] _ = ([],[])
 checkOpenOrders orders window =
   let checked = map (checkOrder window) orders
   in L.foldl' (\(openOrders,trades) m -> acc openOrders trades m) ([],[]) checked
@@ -40,49 +55,30 @@ checkOpenOrders orders window =
 
 checkOrder :: [(String,[Maybe Candle])] -> Order -> Either Order Trade
 checkOrder window order =
-    let candle = head . fromJust . L.lookup (_orderInstrument order) $ window
-        units = (\(Units x) -> x) (_orderUnits order)
+    let candle = last . fromJust . L.lookup (_orderInstrument order) $ window
+        Units units = _orderUnits order
+        l = _l $ fromJust candle
+        h = _h $ fromJust candle
+        Price tp = fromJust . _takeProfit $ order
+        Price sl = fromJust . _stopLoss $ order
+        Price bp = _orderPrice order
+        checkLong order candle | (l <= sl) = Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price sl) (sl - bp)
+                               | (h >= tp) = Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price tp) (tp - bp)
+                               | otherwise = Nothing
+        checkShort order candle | (h >= sl) = Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price sl) (bp - sl)
+                                | (l <= tp) = Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price tp) (bp - tp)
+                                | otherwise = Nothing
         result = if (units > 0) then checkLong order candle else checkShort order candle
-    in orderOrTrade order result
+    in case candle of
+        Nothing -> Left order
+        _ -> orderOrTrade order result
 
 orderOrTrade :: Order -> Maybe Trade -> Either Order Trade
 orderOrTrade order Nothing  = Left order
 orderOrTrade _ (Just trade) = Right trade
 
-checkLong :: Order -> Maybe Candle -> Maybe Trade
-checkLong order Nothing = Nothing
-checkLong order (Just candle) =
-  let l = _l candle
-      h = _h candle
-      Price tp = fromJust . _takeProfit $ order
-      Price sl = fromJust . _stopLoss $ order
-      Price bp = _orderPrice order
-  in if (l <= sl) then Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price sl) (sl - bp)
-     else if (h >= tp) then Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price tp) (tp - bp)
-     else Nothing
-
-checkShort :: Order -> Maybe Candle -> Maybe Trade
-checkShort order Nothing = Nothing
-checkShort order (Just candle) =
-  let l = _l candle
-      h = _h candle
-      Price tp = fromJust . _takeProfit $ order
-      Price sl = fromJust . _stopLoss $ order
-      Price bp = _orderPrice order
-  in if (h >= sl) then Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price sl) (bp - sl)
-     else if (l <= tp) then Just $ closeTrade (_orderUnits order) (_orderInstrument order) (_orderPrice order) (Price tp) (bp - tp)
-     else Nothing
-
 closeTrade :: Units -> String -> Price -> Price -> Double -> Trade
 closeTrade units inst open close profit = Trade {_tradeInstrument = inst, _tradeOpen = open, _tradeClose = close, _tradeUnits = units, _tradeProfit = Points profit}
-
-makeWindows :: Int -> [(String,[Maybe Candle])] -> [[(String,[Maybe Candle])]]
-makeWindows _ i@((_,[]):xs) = []
-makeWindows n xs =
-  let split = makeWindow n xs
-  in (fst split) : (makeWindows n (snd split))
-  where
-    makeWindow n xs = unzip $ map (\(k,v) -> let s = splitAt n v in ((k, fst s),(k, snd s))) xs
 
 
 window :: Int -> [a] -> [[a]]
@@ -92,4 +88,8 @@ window n xs =
     if (length taken) < n then []
     else taken : window n (tail xs)
 
-traceThis x = trace (show x) $ x
+takeR :: Int -> [a] -> [a]
+takeR n l = go (drop n l) l
+  where
+    go [] r          = r
+    go (_:xs) (_:ys) = go xs ys

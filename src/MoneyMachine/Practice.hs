@@ -59,7 +59,7 @@ practice env aid granularity instruments strat =
                 let window = HM.fromList (zip instruments filled)
                 --let fromLoc = (THTC.fromThyme $ THTC.utcToLocalTime tz fromTime)
                 let toLoc = (THTC.fromThyme $ THTC.utcToLocalTime tz toTime)
-                orders <- (_onTick strat) toLoc window (MO.Spread (MO.Points 0.00015)) (MO.Commission 0.0) [] []
+                orders <- (_onTick strat) window (MO.Spread (MO.Points 0.00015)) (MO.Commission 0.0) [] []
                 mapM_ (print . length) filled
                 putStrLn $ show orders
                 let reqs = map (\o -> (makeOandaRequest $ (oandaCreateOrder env aid) $ createOrderDetails o)) orders

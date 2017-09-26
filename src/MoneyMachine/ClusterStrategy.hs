@@ -26,8 +26,8 @@ import           Text.Printf
 
 clusterStrategy ws = Strategy {_strategyName = "Cluster Strategy", _onTick = clusterStratOnTick, _windowSize = ws}
 
-clusterStratOnTick :: LocalTime -> HM.HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
-clusterStratOnTick starttime market (Spread (Points spread)) commission os newTrades = do
+clusterStratOnTick :: HM.HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
+clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
   let ws = length . (HM.lookup "EUR_USD") $ market
   let eurUsdCandles = map fromJust $ filter (\a -> case a of Nothing -> False; _ -> True) $ fromJust $ HM.lookup "EUR_USD" market
   let gbpUsdCandles = map fromJust $ filter (\a -> case a of Nothing -> False; _ -> True) $ fromJust $ HM.lookup "GBP_USD" market
@@ -63,14 +63,14 @@ clusterStratOnTick starttime market (Spread (Points spread)) commission os newTr
       let gls = map _l gbpUsdCandles
       let ecv = V.fromListN elength (map coerce (ePrices))
       let gcv = V.fromListN glength (map coerce (gPrices))
-      Right (_,_,eatrs) <- ta_atr (V.fromListN elength (map coerce (ehs))) (V.fromListN elength (map coerce (els))) (V.fromListN elength (map coerce (ePrices))) 14
-      Right (_,_,gatrs) <- ta_atr (V.fromListN glength (map coerce ghs)) (V.fromListN glength (map coerce gls)) (V.fromListN glength (map coerce gPrices)) 14
-      Right (_,_,fesmas) <- ta_sma ecv 20
-      Right (_,_,fgsmas) <- ta_sma gcv 20
-      Right (_,_,mesmas) <- ta_sma ecv 30
-      Right (_,_,mgsmas) <- ta_sma gcv 30
-      Right (_,_,sesmas) <- ta_sma ecv 40
-      Right (_,_,sgsmas) <- ta_sma gcv 40
+      Right (_,_,eatrs) <- ta_atr (V.fromListN elength (map coerce (ehs))) (V.fromListN elength (map coerce (els))) (V.fromListN elength (map coerce (ePrices))) 13
+      Right (_,_,gatrs) <- ta_atr (V.fromListN glength (map coerce ghs)) (V.fromListN glength (map coerce gls)) (V.fromListN glength (map coerce gPrices)) 13
+      Right (_,_,fesmas) <- ta_sma ecv 8
+      Right (_,_,fgsmas) <- ta_sma gcv 8
+      Right (_,_,mesmas) <- ta_sma ecv 13
+      Right (_,_,mgsmas) <- ta_sma gcv 13
+      Right (_,_,sesmas) <- ta_sma ecv 21
+      Right (_,_,sgsmas) <- ta_sma gcv 21
       let eatr = coerce $ V.head (eatrs) :: Double
       let gatr = coerce $ V.head (gatrs) :: Double
       let fesma = coerce $ V.head fesmas :: Double
@@ -83,8 +83,8 @@ clusterStratOnTick starttime market (Spread (Points spread)) commission os newTr
       --let gatr = avg gPrices
       let eavg = avg ePrices
       let gavg = avg gPrices
-      let esl = eatr * 1
-      let gsl = gatr * 1
+      let esl = eatr * 2
+      let gsl = gatr * 2
       let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl) (ePrice + esl*3)]
                  | (gsl > spread) && (fgsma < mgsma && mgsma < sgsma) && (gPrice > (head gClust)) && (ePrice < (last eClust)) && (gSRNumL >= eSRNumU) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - gsl) (gPrice + gsl*3)]
                  | (esl > spread) && (fesma > mesma && mesma > sesma) && (ePrice < (last eClust)) && (gPrice > (head gClust)) && (eSRNumU <= gSRNumL) = [makeOrder Short "EUR_USD" ePrice (-1000) (ePrice + esl) (ePrice - esl*3)]
@@ -110,7 +110,7 @@ checkNearer v d n x =
   let diff = abs(n - x)
   in if diff < d then ([x],diff) else if diff == d then (v ++ [x],diff) else (v,d)
 
-makeOrder otype inst price u sl tp = trace ("orderin") $ traceThis(Order {_orderType = otype, _orderInstrument = inst, _orderPrice = Price price, _orderUnits=Units u, _stopLoss= Just $ Price sl, _takeProfit= Just $ Price tp, _trailingStop=Nothing})
+makeOrder otype inst price u sl tp = Order {_orderType = otype, _orderInstrument = inst, _orderPrice = Price price, _orderUnits=Units u, _stopLoss= Just $ Price sl, _takeProfit= Just $ Price tp, _trailingStop=Nothing}
 
 {-makeChart :: LocalTime -> String -> [Candle] -> [Double] -> IO ()
 makeChart starttime instName candles sr =
