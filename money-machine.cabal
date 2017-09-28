@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
 --  extra-lib-dirs:      C:\ta-lib\c\lib
-  exposed-modules:     MoneyMachine.Env, MoneyMachine.Backtest2, MoneyMachine.Backtest, MoneyMachine.Candle, MoneyMachine.Chart, MoneyMachine.Cluster, MoneyMachine.ClusterStrategy, MoneyMachine.Order, MoneyMachine.Practice, MoneyMachine.Strategy, MoneyMachine.Trade, MoneyMachine.TechnicalAnalysis, MoneyMachine.MarketHistory, MoneyMachine.Debug
+  exposed-modules:     MoneyMachine.NoopStrategy, MoneyMachine.HistData, MoneyMachine.Env, MoneyMachine.Backtest, MoneyMachine.Candle, MoneyMachine.Chart, MoneyMachine.Cluster, MoneyMachine.ClusterStrategy, MoneyMachine.Order, MoneyMachine.Practice, MoneyMachine.Strategy, MoneyMachine.Trade, MoneyMachine.TechnicalAnalysis, MoneyMachine.MarketHistory, MoneyMachine.Debug
   build-depends:       base
                        , oanda-rest-api
                        , bytestring
@@ -39,7 +39,7 @@ library
 executable money-machine-practice
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -main-is Main
+  ghc-options:         -prof -auto-all -caf-all -fforce-recomp -O2 -threaded -rtsopts -with-rtsopts=-N -main-is Main
   build-depends:       base
                      , money-machine
                     , oanda-rest-api
@@ -62,7 +62,7 @@ executable money-machine-practice
 executable money-machine-backtest
   hs-source-dirs:      app
   main-is:             Backtest.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -main-is Backtest
+  ghc-options:         -prof -auto-all -caf-all -fforce-recomp -O2 -threaded -rtsopts -with-rtsopts=-N -main-is Backtest
   build-depends:       base
                      , money-machine
                     , oanda-rest-api

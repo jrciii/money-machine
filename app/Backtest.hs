@@ -3,6 +3,7 @@ module Backtest where
 import           MoneyMachine.Backtest
 import           System.Environment
 import MoneyMachine.ClusterStrategy
+import MoneyMachine.NoopStrategy
 
 main = do
   cargs <- getArgs

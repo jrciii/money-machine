@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module MoneyMachine.ClusterStrategy where
 
 import qualified Data.HashMap.Lazy     as HM
@@ -63,14 +64,14 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
       let gls = map _l gbpUsdCandles
       let ecv = V.fromListN elength (map coerce (ePrices))
       let gcv = V.fromListN glength (map coerce (gPrices))
-      Right (_,_,eatrs) <- ta_atr (V.fromListN elength (map coerce (ehs))) (V.fromListN elength (map coerce (els))) (V.fromListN elength (map coerce (ePrices))) 13
-      Right (_,_,gatrs) <- ta_atr (V.fromListN glength (map coerce ghs)) (V.fromListN glength (map coerce gls)) (V.fromListN glength (map coerce gPrices)) 13
-      Right (_,_,fesmas) <- ta_sma ecv 8
-      Right (_,_,fgsmas) <- ta_sma gcv 8
-      Right (_,_,mesmas) <- ta_sma ecv 13
-      Right (_,_,mgsmas) <- ta_sma gcv 13
-      Right (_,_,sesmas) <- ta_sma ecv 21
-      Right (_,_,sgsmas) <- ta_sma gcv 21
+      Right (_,_,eatrs) <- ta_atr (V.fromListN elength (map coerce (ehs))) (V.fromListN elength (map coerce (els))) (V.fromListN elength (map coerce (ePrices))) 3360
+      Right (_,_,gatrs) <- ta_atr (V.fromListN glength (map coerce ghs)) (V.fromListN glength (map coerce gls)) (V.fromListN glength (map coerce gPrices)) 3360
+      Right (_,_,fesmas) <- ta_sma ecv 1920
+      Right (_,_,fgsmas) <- ta_sma gcv 1920
+      Right (_,_,mesmas) <- ta_sma ecv 3120
+      Right (_,_,mgsmas) <- ta_sma gcv 3120
+      Right (_,_,sesmas) <- ta_sma ecv 5040
+      Right (_,_,sgsmas) <- ta_sma gcv 5040
       let eatr = coerce $ V.head (eatrs) :: Double
       let gatr = coerce $ V.head (gatrs) :: Double
       let fesma = coerce $ V.head fesmas :: Double
@@ -81,8 +82,8 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
       let sgsma = coerce $ V.head sgsmas :: Double
       --let eatr = abs ((maximum ePrices) - (minimum ePrices))
       --let gatr = avg gPrices
-      let eavg = avg ePrices
-      let gavg = avg gPrices
+      --let eavg = avg ePrices
+      --let gavg = avg gPrices
       let esl = eatr * 2
       let gsl = gatr * 2
       let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl) (ePrice + esl*3)]

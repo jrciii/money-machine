@@ -1,12 +1,16 @@
+{-# LANGUAGE BangPatterns #-}
 module MoneyMachine.Backtest where
 
 import           Control.Monad
-import Control.Monad.IO.Class
+import           Control.Monad.IO.Class
 import           Control.Monad.Trans.RWS.Strict
-import qualified Data.HashMap.Lazy            as HM
-import qualified Data.List                    as L
+import           Data.Either
+import qualified Data.HashMap.Strict            as HM
+import qualified Data.List                      as L
 import           Data.Maybe
-import qualified Data.Sequence                as S
+import qualified Data.Sequence                  as S
+import           Data.Time
+
 import           MoneyMachine.Candle
 import           MoneyMachine.HistData
 import           MoneyMachine.Order
@@ -21,8 +25,9 @@ data Env = Env
 backtest :: Strategy -> [String] -> [String] -> Int -> IO Double
 backtest strat files instLabels ws = do
     contents <- mapM readFile files
+    let parser = parseTimeOrError True defaultTimeLocale "%d.%m.%Y %H:%M:%S.000" :: String -> LocalTime
     let lined = map (drop 1 . lines) contents
-    let parsed = map (map $ Just . histDataToCandle) lined
+    let parsed = map (map $ Just . histDataToCandle parser) lined
     let windowed = map (window ws) parsed
     let zipped = map (\(a,b) -> map (\x -> (a,x)) b) $ zip instLabels windowed
     let transposed = L.transpose zipped
@@ -33,15 +38,16 @@ backtest strat files instLabels ws = do
     return $ L.foldl' (\profit trade -> profit + ((\(Points p) -> p) (_tradeProfit trade)) - ((\( Spread (Points s)) -> s) (_spread env))) 0 trades
 
 runBacktest :: Strategy -> [[(String,[Maybe Candle])]] -> RWST Env (S.Seq String) ([Order],[Trade]) IO ()
-runBacktest _ [] = do return ()
+runBacktest _ [] = return ()
 runBacktest strat (w:ws) =
     do Env spread commission <- ask
        (openOrders,existingTrades) <- get
        let (remainingOrders,newTrades) = checkOpenOrders openOrders w
        let market = HM.fromList w
-       let trades = existingTrades ++ newTrades
+       let trades = newTrades ++ existingTrades
        newOrders <- liftIO $ (_onTick strat) market spread commission remainingOrders trades
-       put (remainingOrders ++ newOrders,trades)
+       let orders = newOrders ++ remainingOrders
+       put (orders,trades)
        runBacktest strat ws
 
 
@@ -49,9 +55,7 @@ checkOpenOrders :: [Order] -> [(String,[Maybe Candle])] -> ([Order],[Trade])
 checkOpenOrders [] _ = ([],[])
 checkOpenOrders orders window =
   let checked = map (checkOrder window) orders
-  in L.foldl' (\(openOrders,trades) m -> acc openOrders trades m) ([],[]) checked
-  where acc orders trades (Left order)  = (orders ++ [order],trades)
-        acc orders trades (Right trade) = (orders,trades ++ [trade])
+  in partitionEithers checked
 
 checkOrder :: [(String,[Maybe Candle])] -> Order -> Either Order Trade
 checkOrder window order =
@@ -71,7 +75,7 @@ checkOrder window order =
         result = if (units > 0) then checkLong order candle else checkShort order candle
     in case candle of
         Nothing -> Left order
-        _ -> orderOrTrade order result
+        _       -> orderOrTrade order result
 
 orderOrTrade :: Order -> Maybe Trade -> Either Order Trade
 orderOrTrade order Nothing  = Left order
