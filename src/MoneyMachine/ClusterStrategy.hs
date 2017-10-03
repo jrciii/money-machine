@@ -21,31 +21,30 @@ import           Data.TALib
 import qualified Data.Thyme.LocalTime  as TH
 import qualified Data.Thyme.Time.Core  as TC
 import qualified Data.Time.LocalTime   as TI
-import qualified Data.Vector.Storable  as V
+import qualified Data.Vector           as V
+import qualified Data.Vector.Storable  as VS
 import           Foreign.C.Types
 import           Text.Printf
 
 clusterStrategy ws = Strategy {_strategyName = "Cluster Strategy", _onTick = clusterStratOnTick, _windowSize = ws}
 
-clusterStratOnTick :: HM.HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
+clusterStratOnTick :: HM.HashMap String (V.Vector (Maybe Candle)) -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
 clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
-  let ws = length . (HM.lookup "EUR_USD") $ market
-  let eurUsdCandles = map fromJust $ filter (\a -> case a of Nothing -> False; _ -> True) $ fromJust $ HM.lookup "EUR_USD" market
-  let gbpUsdCandles = map fromJust $ filter (\a -> case a of Nothing -> False; _ -> True) $ fromJust $ HM.lookup "GBP_USD" market
-  case (eurUsdCandles,gbpUsdCandles) of
-    ([],_) -> return []
-    (_,[]) -> return []
+  let em = fromJust $ HM.lookup "EUR_USD" market
+  let !eurUsdCandles = V.mapMaybe id em
+  let !gbpUsdCandles = V.mapMaybe id $ fromJust $ HM.lookup "GBP_USD" market
+  case (V.null eurUsdCandles,V.null gbpUsdCandles) of
+    (True,_) -> return []
+    (_,True) -> return []
     _ -> do
-      let feCandle = head eurUsdCandles
-      let fgCandle = head gbpUsdCandles
-      let eCandle = last eurUsdCandles
-      let gCandle = last gbpUsdCandles
+      let feCandle = V.head eurUsdCandles
+      let fgCandle = V.head gbpUsdCandles
+      let eCandle = V.last eurUsdCandles
+      let gCandle = V.last gbpUsdCandles
       let ePrice = _c eCandle
       let gPrice = _c gCandle
-      let ePrices = map _c eurUsdCandles
-      let gPrices = map _c gbpUsdCandles
-      let eClusters = sort $ kmeansSR eurUsdCandles _c 3
-      let gClusters = sort $ kmeansSR gbpUsdCandles _c 3
+      let eClusters = sort $ kmeansSR (V.toList eurUsdCandles) _c 3
+      let gClusters = sort $ kmeansSR (V.toList gbpUsdCandles) _c 3
       let ecl = head eClusters
       let ecg = last eClusters
       let gcl = head gClusters
@@ -56,30 +55,30 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
       let eSRNumL = (fromJust $ elemIndex (head eClust) eClusters) :: Int
       let gSRNumU = (fromJust $ elemIndex (last gClust) gClusters) :: Int
       let gSRNumL = (fromJust $ elemIndex (head gClust) gClusters) :: Int
-      let elength = length eurUsdCandles
-      let glength = length gbpUsdCandles
-      let ehs = map _h eurUsdCandles
-      let els = map _l eurUsdCandles
-      let ghs = map _h gbpUsdCandles
-      let gls = map _l gbpUsdCandles
-      let ecv = V.fromListN elength (map coerce (ePrices))
-      let gcv = V.fromListN glength (map coerce (gPrices))
-      Right (_,_,eatrs) <- ta_atr (V.fromListN elength (map coerce (ehs))) (V.fromListN elength (map coerce (els))) (V.fromListN elength (map coerce (ePrices))) 3360
-      Right (_,_,gatrs) <- ta_atr (V.fromListN glength (map coerce ghs)) (V.fromListN glength (map coerce gls)) (V.fromListN glength (map coerce gPrices)) 3360
+      let ehs = VS.convert $ V.map (coerce . _h) eurUsdCandles
+      let els = VS.convert $ V.map (coerce . _l) eurUsdCandles
+      let ghs = VS.convert $ V.map (coerce . _h) gbpUsdCandles
+      let gls = VS.convert $ V.map (coerce . _l) gbpUsdCandles
+      --let ecv = VS.fromList (map coerce (ePrices) :: [CDouble])
+      --let gcv = VS.fromList (map coerce (gPrices) :: [CDouble])
+      let ecv = VS.convert $ V.map (coerce . _c) eurUsdCandles
+      let gcv = VS.convert $ V.map (coerce . _c) gbpUsdCandles
+      Right (_,_,eatrs) <- ta_atr ehs els ecv 3360
+      Right (_,_,gatrs) <- ta_atr ghs gls gcv 3360
       Right (_,_,fesmas) <- ta_sma ecv 1920
       Right (_,_,fgsmas) <- ta_sma gcv 1920
       Right (_,_,mesmas) <- ta_sma ecv 3120
       Right (_,_,mgsmas) <- ta_sma gcv 3120
       Right (_,_,sesmas) <- ta_sma ecv 5040
       Right (_,_,sgsmas) <- ta_sma gcv 5040
-      let eatr = coerce $ V.head (eatrs) :: Double
-      let gatr = coerce $ V.head (gatrs) :: Double
-      let fesma = coerce $ V.head fesmas :: Double
-      let fgsma = coerce $ V.head fgsmas :: Double
-      let mesma = coerce $ V.head mesmas :: Double
-      let mgsma = coerce $ V.head mgsmas :: Double
-      let sesma = coerce $ V.head sesmas :: Double
-      let sgsma = coerce $ V.head sgsmas :: Double
+      let eatr = coerce $ VS.head (eatrs) :: Double
+      let gatr = coerce $ VS.head (gatrs) :: Double
+      let fesma = coerce $ VS.head fesmas :: Double
+      let fgsma = coerce $ VS.head fgsmas :: Double
+      let mesma = coerce $ VS.head mesmas :: Double
+      let mgsma = coerce $ VS.head mgsmas :: Double
+      let sesma = coerce $ VS.head sesmas :: Double
+      let sgsma = coerce $ VS.head sgsmas :: Double
       --let eatr = abs ((maximum ePrices) - (minimum ePrices))
       --let gatr = avg gPrices
       --let eavg = avg ePrices
@@ -106,7 +105,7 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
 
 findNearest :: (Num t, Ord t) => t -> [t] -> ([t], t)
 findNearest _ [] = ([],0)
-findNearest n (x:xs) = foldl (\(v,d) a -> checkNearer v d n a) ([n],abs(n - x)) (xs)
+findNearest n (x:xs) = foldl' (\(v,d) a -> checkNearer v d n a) ([n],abs(n - x)) (xs)
 checkNearer v d n x =
   let diff = abs(n - x)
   in if diff < d then ([x],diff) else if diff == d then (v ++ [x],diff) else (v,d)
