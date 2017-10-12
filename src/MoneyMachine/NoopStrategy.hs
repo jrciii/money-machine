@@ -8,9 +8,9 @@ import           MoneyMachine.Debug
 import           MoneyMachine.Order
 import           MoneyMachine.Strategy
 import           MoneyMachine.Trade
-import Data.Vector
+
 
 noopStrategy ws = Strategy {_strategyName = "Cluster Strategy", _onTick = noopStratOnTick, _windowSize = ws}
 
-noopStratOnTick :: HM.HashMap String (Vector (Maybe Candle)) -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
-noopStratOnTick market (Spread (Points spread)) commission os newTrades = mempty
+noopStratOnTick :: HM.HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
+noopStratOnTick market (Spread (Points spread)) commission os newTrades = return []

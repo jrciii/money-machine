@@ -10,7 +10,7 @@ import Data.Time.LocalTime
 
 data Strategy = Strategy
   { _strategyName :: String
-  , _onTick       :: LocalTime -> HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
+  , _onTick       :: HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
   , _windowSize   :: Int
   }
 

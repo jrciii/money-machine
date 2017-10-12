@@ -23,7 +23,6 @@ import           MoneyMachine.Strategy
 import           MoneyMachine.Trade
 import           OANDA
 import           Text.Printf
-import qualified Data.Vector as V
 {-# ANN module ("HLint: ignore Redundant bracket"::String) #-}
 
 practice :: OandaEnv -> AccountID -> CandlestickGranularity -> [String] -> Strategy -> IO ()
@@ -57,7 +56,7 @@ practice env aid granularity instruments strat =
                 let startSec = floor $ TIP.utcTimeToPOSIXSeconds $ TI.localTimeToUTC tzti $ _candleTime $ head $ head sorted
                 let endSec = floor $ TIP.utcTimeToPOSIXSeconds $ TI.localTimeToUTC tzti $ _candleTime $ last $ head sorted
                 let filled = map (fillGaps startSec endSec granSecs) candles
-                let window = HM.fromList (map (\(a,b) -> (a,V.fromList b)) $ zip instruments filled)
+                let window = HM.fromList (zip instruments filled)
                 --let fromLoc = (THTC.fromThyme $ THTC.utcToLocalTime tz fromTime)
                 let toLoc = (THTC.fromThyme $ THTC.utcToLocalTime tz toTime)
                 orders <- (_onTick strat) toLoc window (MO.Spread (MO.Points 0.00015)) (MO.Commission 0.0) [] []
