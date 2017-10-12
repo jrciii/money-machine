@@ -33,7 +33,6 @@ library
                        , talib
                        , vector
                        , split
-                       , transformers
   default-language:    Haskell2010
 
 executable money-machine-practice
@@ -80,7 +79,29 @@ executable money-machine-backtest
                     , vector
                     , talib
                     , split
-                    , transformers
+  default-language:    Haskell2010
+
+executable money-machine-backtest2
+  hs-source-dirs:      app
+  main-is:             Backtest2.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -main-is Backtest2
+  build-depends:       base
+                     , money-machine
+                    , oanda-rest-api
+                    , bytestring
+                    , thyme
+                    , kdt
+                    , text
+                    , lens
+                    , time
+                    , kmeans
+                    , unordered-containers
+                    , directory
+                    , containers
+                    , Decimal
+                    , vector
+                    , talib
+                    , split
   default-language:    Haskell2010
 
 test-suite money-machine-test
