@@ -24,4 +24,13 @@ kmeansSRo cs numlines = let priceVals = map (\x -> candleAsList x) cs
 kmeansSR :: [Candle] -> (Candle -> Double) -> Int -> [Double]
 kmeansSR cs cToD numlines = let priceVals = map (\x -> [cToD x]) cs
                                 clusters = map L.concat $ kmeans numlines priceVals
-                            in map (\x -> (sum x) / (L.genericLength x)) clusters
+                            in map avg clusters
+                            where avg l = let (sum,count) = L.foldl' (\(s,c) x -> (s+x,c+1)) (0.0,0) l
+                                          in (sum/count)
+
+kmeansSRn :: [Double] -> Int -> [Double]
+kmeansSRn cs numlines = let priceVals = map (\x -> [x]) cs
+                            clusters = map L.concat $ kmeans numlines priceVals
+                        in map avg clusters
+                        where avg l = let (sum,count) = L.foldl' (\(s,c) x -> (s+x,c+1)) (0.0,0) l
+                                    in (sum/count)

@@ -17,33 +17,41 @@ import           MoneyMachine.Trade
 import           System.Directory      as D
 
 import           Data.Coerce
+import qualified Data.Sequence         as S
 import           Data.TALib
 import qualified Data.Thyme.LocalTime  as TH
 import qualified Data.Thyme.Time.Core  as TC
 import qualified Data.Time.LocalTime   as TI
-import qualified Data.Vector.Storable  as V
+import qualified Data.Vector           as V
+import qualified Data.Vector.Storable  as VS
 import           Foreign.C.Types
 import           Text.Printf
+import qualified Data.Foldable as F
 
 clusterStrategy ws = Strategy {_strategyName = "Cluster Strategy", _onTick = clusterStratOnTick, _windowSize = ws}
 
-clusterStratOnTick :: HM.HashMap String [Maybe Candle] -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
+clusterStratOnTick :: HM.HashMap String ([Maybe Candle],Maybe Candle) -> Spread -> Commission -> [Order] -> [Trade] -> IO [Order]
 clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
-  let ws = length . (HM.lookup "EUR_USD") $ market
-  let eurUsdCandles = map fromJust $ filter (\a -> case a of Nothing -> False; _ -> True) $ fromJust $ HM.lookup "EUR_USD" market
-  let gbpUsdCandles = map fromJust $ filter (\a -> case a of Nothing -> False; _ -> True) $ fromJust $ HM.lookup "GBP_USD" market
+  let eurUsdCandles = foldr (\x a -> case x of Nothing -> a; Just v -> v:a) [] $ fst $ fromJust $ HM.lookup "EUR_USD" market
+  let gbpUsdCandles = foldr (\x a -> case x of Nothing -> a; Just v -> v:a) [] $ fst $ fromJust $ HM.lookup "GBP_USD" market
   case (eurUsdCandles,gbpUsdCandles) of
     ([],_) -> return []
     (_,[]) -> return []
     _ -> do
-      let feCandle = head eurUsdCandles
-      let fgCandle = head gbpUsdCandles
-      let eCandle = last eurUsdCandles
-      let gCandle = last gbpUsdCandles
-      let ePrice = _c eCandle
-      let gPrice = _c gCandle
-      let ePrices = map _c eurUsdCandles
-      let gPrices = map _c gbpUsdCandles
+      let ecPrices = map (coerce . _c) eurUsdCandles
+      let gcPrices = map (coerce . _c) gbpUsdCandles
+      let ehPrices = map (coerce . _h) eurUsdCandles
+      let ghPrices = map (coerce . _h) gbpUsdCandles
+      let elPrices = map (coerce . _l) eurUsdCandles
+      let glPrices = map (coerce . _l) gbpUsdCandles
+      let ecv = VS.fromList ecPrices :: VS.Vector CDouble
+      let gcv = VS.fromList gcPrices :: VS.Vector CDouble
+      let ehv = VS.fromList ehPrices :: VS.Vector CDouble
+      let ghv = VS.fromList ghPrices :: VS.Vector CDouble
+      let elv = VS.fromList elPrices :: VS.Vector CDouble
+      let glv = VS.fromList glPrices :: VS.Vector CDouble
+      let ePrice = coerce $ VS.last ecv
+      let gPrice = coerce $ VS.last gcv
       let eClusters = sort $ kmeansSR eurUsdCandles _c 3
       let gClusters = sort $ kmeansSR gbpUsdCandles _c 3
       let ecl = head eClusters
@@ -62,34 +70,38 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
       let els = map _l eurUsdCandles
       let ghs = map _h gbpUsdCandles
       let gls = map _l gbpUsdCandles
-      let ecv = V.fromListN elength (map coerce (ePrices))
-      let gcv = V.fromListN glength (map coerce (gPrices))
-      Right (_,_,eatrs) <- ta_atr (V.fromListN elength (map coerce (ehs))) (V.fromListN elength (map coerce (els))) (V.fromListN elength (map coerce (ePrices))) 3360
-      Right (_,_,gatrs) <- ta_atr (V.fromListN glength (map coerce ghs)) (V.fromListN glength (map coerce gls)) (V.fromListN glength (map coerce gPrices)) 3360
-      Right (_,_,fesmas) <- ta_sma ecv 1920
-      Right (_,_,fgsmas) <- ta_sma gcv 1920
-      Right (_,_,mesmas) <- ta_sma ecv 3120
-      Right (_,_,mgsmas) <- ta_sma gcv 3120
-      Right (_,_,sesmas) <- ta_sma ecv 5040
-      Right (_,_,sgsmas) <- ta_sma gcv 5040
-      let eatr = coerce $ V.head (eatrs) :: Double
-      let gatr = coerce $ V.head (gatrs) :: Double
-      let fesma = coerce $ V.head fesmas :: Double
-      let fgsma = coerce $ V.head fgsmas :: Double
-      let mesma = coerce $ V.head mesmas :: Double
-      let mgsma = coerce $ V.head mgsmas :: Double
-      let sesma = coerce $ V.head sesmas :: Double
-      let sgsma = coerce $ V.head sgsmas :: Double
+      let atrS = 336
+      let fsmaS = 192
+      let msmaS = 312
+      let ssmaS = 504
+      let slice' v s = VS.slice (VS.length v - s - 1) (s + 1) v
+      let slice'' v s = VS.slice (VS.length v - s - 1) (s) v
+      Right (_,_,eatrs) <- ta_atr (slice' ehv atrS) (slice' elv atrS) (slice' ecv atrS) atrS
+      Right (_,_,gatrs) <- ta_atr (slice' ghv atrS) (slice' glv atrS) (slice' gcv atrS) atrS
+      Right (_,_,fesmas) <- ta_sma (slice'' ecv fsmaS) fsmaS
+      Right (_,_,fgsmas) <- ta_sma (slice'' gcv fsmaS) fsmaS
+      Right (_,_,mesmas) <- ta_sma (slice'' ecv msmaS) msmaS
+      Right (_,_,mgsmas) <- ta_sma (slice'' gcv msmaS) msmaS
+      Right (_,_,sesmas) <- ta_sma (slice'' ecv ssmaS) ssmaS
+      Right (_,_,sgsmas) <- ta_sma (slice'' gcv ssmaS) ssmaS
+      let eatr = coerce $ VS.head eatrs :: Double
+      let gatr = coerce $ VS.head gatrs :: Double
+      let fesma = coerce $ VS.head fesmas :: Double
+      let fgsma = coerce $ VS.head fgsmas :: Double
+      let mesma = coerce $ VS.head mesmas :: Double
+      let mgsma = coerce $ VS.head mgsmas :: Double
+      let sesma = coerce $ VS.head sesmas :: Double
+      let sgsma = coerce $ VS.head sgsmas :: Double
       --let eatr = abs ((maximum ePrices) - (minimum ePrices))
       --let gatr = avg gPrices
       --let eavg = avg ePrices
       --let gavg = avg gPrices
-      let esl = eatr * 2
-      let gsl = gatr * 2
-      let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl) (ePrice + esl*3)]
-                 | (gsl > spread) && (fgsma < mgsma && mgsma < sgsma) && (gPrice > (head gClust)) && (ePrice < (last eClust)) && (gSRNumL >= eSRNumU) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - gsl) (gPrice + gsl*3)]
-                 | (esl > spread) && (fesma > mesma && mesma > sesma) && (ePrice < (last eClust)) && (gPrice > (head gClust)) && (eSRNumU <= gSRNumL) = [makeOrder Short "EUR_USD" ePrice (-1000) (ePrice + esl) (ePrice - esl*3)]
-                 | (gsl > spread) && (fgsma > mgsma && mgsma > sgsma) && (gPrice < (last gClust)) && (ePrice > (head eClust)) && (gSRNumU <= eSRNumL) = [makeOrder Short "GBP_USD" gPrice (-1000) (gPrice + gsl) (gPrice + gsl*3)]
+      let esl = eatr
+      let gsl = gatr
+      let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl) (ePrice + esl*2)]
+                 | (gsl > spread) && (fgsma < mgsma && mgsma < sgsma) && (gPrice > (head gClust)) && (ePrice < (last eClust)) && (gSRNumL >= eSRNumU) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - gsl) (gPrice + gsl*2)]
+                 | (esl > spread) && (fesma > mesma && mesma > sesma) && (ePrice < (last eClust)) && (gPrice > (head gClust)) && (eSRNumU <= gSRNumL) = [makeOrder Short "EUR_USD" ePrice (-1000) (ePrice + esl) (ePrice - esl*2)]
+                 | (gsl > spread) && (fgsma > mgsma && mgsma > sgsma) && (gPrice < (last gClust)) && (ePrice > (head eClust)) && (gSRNumU <= eSRNumL) = [makeOrder Short "GBP_USD" gPrice (-1000) (gPrice + gsl) (gPrice + gsl*2)]
                  |  otherwise = []
       --let result | (ePrice > ecl) && (gPrice < gcl) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - 0.0055) (ePrice + 0.009)]
       --           | (gPrice > gcl) && (ePrice < ecl) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - 0.0055) (gPrice + 0.009)]
@@ -123,6 +135,3 @@ makeChart starttime instName candles sr =
     D.createDirectoryIfMissing True $ "clustercharts/" ++ folder ++ "/" ++ instName
     makeSRWindowChart fileName timePrice sr
 -}
-avg l =
-    let (sum,count) = foldl' (\(s,c) x -> (s+x,c+1)) (0,0) l
-    in (sum / count)
