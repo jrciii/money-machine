@@ -70,20 +70,20 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
       let els = map _l eurUsdCandles
       let ghs = map _h gbpUsdCandles
       let gls = map _l gbpUsdCandles
-      let atrS = 336
-      let fsmaS = 192
-      let msmaS = 312
-      let ssmaS = 504
+      let atrS = 140
+      let fmaS = 80
+      let mmaS = 130
+      let smaS = 210
       let slice' v s = VS.slice (VS.length v - s - 1) (s + 1) v
       let slice'' v s = VS.slice (VS.length v - s - 1) (s) v
       Right (_,_,eatrs) <- ta_atr (slice' ehv atrS) (slice' elv atrS) (slice' ecv atrS) atrS
       Right (_,_,gatrs) <- ta_atr (slice' ghv atrS) (slice' glv atrS) (slice' gcv atrS) atrS
-      Right (_,_,fesmas) <- ta_sma (slice'' ecv fsmaS) fsmaS
-      Right (_,_,fgsmas) <- ta_sma (slice'' gcv fsmaS) fsmaS
-      Right (_,_,mesmas) <- ta_sma (slice'' ecv msmaS) msmaS
-      Right (_,_,mgsmas) <- ta_sma (slice'' gcv msmaS) msmaS
-      Right (_,_,sesmas) <- ta_sma (slice'' ecv ssmaS) ssmaS
-      Right (_,_,sgsmas) <- ta_sma (slice'' gcv ssmaS) ssmaS
+      Right (_,_,fesmas) <- ta_ema (slice'' ecv fmaS) fmaS
+      Right (_,_,fgsmas) <- ta_ema (slice'' gcv fmaS) fmaS
+      Right (_,_,mesmas) <- ta_ema (slice'' ecv mmaS) mmaS
+      Right (_,_,mgsmas) <- ta_ema (slice'' gcv mmaS) mmaS
+      Right (_,_,sesmas) <- ta_ema (slice'' ecv smaS) smaS
+      Right (_,_,sgsmas) <- ta_ema (slice'' gcv smaS) smaS
       let eatr = coerce $ VS.head eatrs :: Double
       let gatr = coerce $ VS.head gatrs :: Double
       let fesma = coerce $ VS.head fesmas :: Double
@@ -98,10 +98,12 @@ clusterStratOnTick market (Spread (Points spread)) commission os newTrades = do
       --let gavg = avg gPrices
       let esl = eatr
       let gsl = gatr
-      let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl) (ePrice + esl*2)]
-                 | (gsl > spread) && (fgsma < mgsma && mgsma < sgsma) && (gPrice > (head gClust)) && (ePrice < (last eClust)) && (gSRNumL >= eSRNumU) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - gsl) (gPrice + gsl*2)]
-                 | (esl > spread) && (fesma > mesma && mesma > sesma) && (ePrice < (last eClust)) && (gPrice > (head gClust)) && (eSRNumU <= gSRNumL) = [makeOrder Short "EUR_USD" ePrice (-1000) (ePrice + esl) (ePrice - esl*2)]
-                 | (gsl > spread) && (fgsma > mgsma && mgsma > sgsma) && (gPrice < (last gClust)) && (ePrice > (head eClust)) && (gSRNumU <= eSRNumL) = [makeOrder Short "GBP_USD" gPrice (-1000) (gPrice + gsl) (gPrice + gsl*2)]
+      let slf = 2
+      let tpf = 6
+      let result | (esl > spread) && (fesma < mesma && mesma < sesma) && (ePrice > (head eClust)) && (gPrice < (last gClust)) && (eSRNumL >= gSRNumU) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - esl * slf) (ePrice + esl*tpf)]
+                 | (gsl > spread) && (fgsma < mgsma && mgsma < sgsma) && (gPrice > (head gClust)) && (ePrice < (last eClust)) && (gSRNumL >= eSRNumU) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - gsl * slf) (gPrice + gsl*tpf)]
+                 | (esl > spread) && (fesma > mesma && mesma > sesma) && (ePrice < (last eClust)) && (gPrice > (head gClust)) && (eSRNumU <= gSRNumL) = [makeOrder Short "EUR_USD" ePrice (-1000) (ePrice + esl * slf) (ePrice - esl*tpf)]
+                 | (gsl > spread) && (fgsma > mgsma && mgsma > sgsma) && (gPrice < (last gClust)) && (ePrice > (head eClust)) && (gSRNumU <= eSRNumL) = [makeOrder Short "GBP_USD" gPrice (-1000) (gPrice + gsl * slf) (gPrice + gsl*tpf)]
                  |  otherwise = []
       --let result | (ePrice > ecl) && (gPrice < gcl) = [makeOrder Long "EUR_USD" ePrice 1000 (ePrice - 0.0055) (ePrice + 0.009)]
       --           | (gPrice > gcl) && (ePrice < ecl) = [makeOrder Long "GBP_USD" gPrice 1000 (gPrice - 0.0055) (gPrice + 0.009)]
