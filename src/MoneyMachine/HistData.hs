@@ -3,7 +3,6 @@ module MoneyMachine.HistData where
 
 import qualified Data.ByteString.Char8      as C
 import qualified Data.ByteString.Lex.Fractional as R
-import           Data.List.Split
 import           Data.Time
 import           MoneyMachine.Candle
 
