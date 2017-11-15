@@ -61,7 +61,6 @@ go env aid granularity instruments strat granSecs windowSecs windowSize tz tzti 
     let positions = accountOpenPositionCount account
     if positions > 0
     then do
-      liftIO $ putStrLn "Open positions, sleeping"
       liftIO $ threadDelay $ 30 * 1000000
     else do
       to <-liftIO $ THC.getCurrentTime
@@ -76,7 +75,6 @@ go env aid granularity instruments strat granSecs windowSecs windowSize tz tzti 
       let thisTime = candlestickTime $ head $ candlestickResponseCandles $ head $ resps
       case lastTime of
         Just t | (t == thisTime) -> do
-          liftIO $ putStrLn "Same candle as last"
           liftIO $ threadDelay $ 30 * 1000000
         _ -> do
           put $ Just thisTime
