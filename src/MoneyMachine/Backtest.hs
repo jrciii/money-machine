@@ -75,22 +75,22 @@ checkOrder window order =
         result =  if units > 0 then checkLong else checkShort
     in case candle of
         Nothing -> Left order
-        _       -> maybe (Left (updateTrailingStopLoss (Price c) order)) Right result
+        _       -> maybe (Left (updateTrailingStopLoss (Price h) (Price l) order)) Right result
 
-updateTrailingStopLoss :: Price -> Order -> Order
-updateTrailingStopLoss _ o@Order{_trailingStop = Nothing} = o
-updateTrailingStopLoss (Price p) o@Order{_orderUnits = Units u,_stopLoss=sl,_trailingStop=Just TrailingStop {_triggerPrice = Price(tp), _trailAmount = Points ta}}
-  | u > 0 && p >= tp =
+updateTrailingStopLoss :: Price -> Price -> Order -> Order
+updateTrailingStopLoss _ _ o@Order{_trailingStop = Nothing} = o
+updateTrailingStopLoss (Price h) (Price l) o@Order{_orderUnits = Units u,_stopLoss=sl,_trailingStop=Just TrailingStop {_triggerPrice = Price(tp), _trailAmount = Points ta}}
+  | u > 0 && h >= tp =
     case sl of
-      Nothing -> o & stopLoss .~ Just (Price (p - ta))
+      Nothing -> o & stopLoss .~ Just (Price (h - ta))
       Just (Price slp)
-        | (p - ta) > slp -> o & stopLoss .~ Just (Price (p - ta))
+        | (h - ta) > slp -> o & stopLoss .~ Just (Price (h - ta))
         | otherwise -> o
-  | u < 0 && p <= tp =
+  | u < 0 && l <= tp =
     case sl of
-        Nothing -> o & stopLoss .~ Just (Price (p + ta))
+        Nothing -> o & stopLoss .~ Just (Price (l + ta))
         Just (Price slp)
-          | (p + ta) < slp -> o & stopLoss .~ Just (Price (p + ta))
+          | (l + ta) < slp -> o & stopLoss .~ Just (Price (l + ta))
           | otherwise -> o
   | otherwise = o
 
