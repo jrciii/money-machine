@@ -87,6 +87,12 @@ createOrderDetails order =
            , takeProfitDetailsGtdTime = OandaZonedTime $ THT.utcToZonedTime (THTC.hoursToTimeZone 0) $ THT.posixSecondsToUTCTime $ fromIntegral 0
            , takeProfitDetailsClientExtensions = Nothing
            }
+        ts = Just TrailingStopLossDetails
+           { trailingStopLossDetailsDistance = T.pack $ printf "%.5f" $ MO.unPoints $ (fromJust $ order^.MO.trailingStop)^.MO.trailAmount
+           , trailingStopLossDetailsTimeInForce = GTC
+           , trailingStopLossDetailsGtdTime = OandaZonedTime $ THT.utcToZonedTime (THTC.hoursToTimeZone 0) $ THT.posixSecondsToUTCTime $ fromIntegral 0
+           , trailingStopLossDetailsClientExtensions = Nothing
+           }
         blankReq = orderRequest MARKET
     in blankReq
        & orderRequestInstrument .~ (Just $ InstrumentName $ T.pack $ MO._orderInstrument order)
@@ -94,3 +100,4 @@ createOrderDetails order =
        & orderRequestPrice .~ (Just $ PriceValue $ T.pack $ show $ (\(MO.Price p) -> p) (MO._orderPrice order))
        & orderRequestTakeProfitOnFill .~ tp
        & orderRequestStopLossOnFill .~ sl
+       & orderRequestTrailingStopLossOnFill .~ ts
