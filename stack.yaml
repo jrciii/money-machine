@@ -9,13 +9,13 @@
 # to be used for project dependencies. For example:
 #
 # resolver: lts-3.5
-resolver: nightly-2017-09-19
+# resolver: nightly-2017-09-19
 # resolver: ghc-8.0.1
 # resolver: ghcjs-0.1.0_ghc-7.10.2
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-# resolver: lts-9.5
+resolver: lts-9.5
 #resolver: lts-7.24
 
 # User packages to be built.
@@ -40,10 +40,10 @@ packages:
 - .
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-#- location:
-#    git: https://github.com/jrciii/talib.git
-#    commit: 519060f8e208871d635b9462a3ef325693b3b034
-#  extra-dep: true
+- location:
+    git: https://github.com/jrciii/talib.git
+    commit: 519060f8e208871d635b9462a3ef325693b3b034
+  extra-dep: true
 
 extra-deps:
 - oanda-rest-api-0.4.1
@@ -68,8 +68,8 @@ extra-package-dbs: []
 # Extra directories used by stack for building
 #extra-include-dirs:
 #- C:\ta-lib\c\include
-#extra-lib-dirs:
-#- C:\ta-lib2\c\lib
+extra-lib-dirs:
+- /usr/local/lib
 
 #
 # Allow a newer minor version of GHC than the snapshot specifies
