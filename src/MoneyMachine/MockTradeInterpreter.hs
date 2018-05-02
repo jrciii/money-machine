@@ -9,6 +9,7 @@ import Data.Maybe
 import MoneyMachine.Order
 import MoneyMachine.Trade
 import MoneyMachine.TradingDSL
+import Debug.Trace
 
 type Bid = Double
 
