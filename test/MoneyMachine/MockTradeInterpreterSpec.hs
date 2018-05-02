@@ -20,14 +20,17 @@ openMarketOrderStrategy (md, op, cp, po) =
     let (inst, _) = head $ M.toList md
     in ([MarketOrder { units = 1000, instrument = inst}],[])
 
-shouldTrade = (modify (+1) >> get) >>= return . (==2)
+shouldTrade :: (Monad m) => StateT Int m Bool
+shouldTrade = fmap (==2) (modify (+1) >> get)
 
 marketData = M.fromList [("EUR_USD",[(1.0002,1.0000)])]
+
+prog = trade openMarketOrderStrategy shouldTrade
 
 spec :: Spec
 spec =
   describe "mockInterpret" $ do
-    it "opens market orders from strategies" $
-      execState
-      (mockInterpret (trade openMarketOrderStrategy shouldTrade)) (marketData, M.fromList [], M.fromList [], [()])
-      `shouldBe` (marketData,M.fromList [("EUR_USD",[(1000,1.0000)])], M.fromList [], [()])
+    it "opens market orders from strategies" $ do
+      res <- (execStateT (execStateT
+        (mockInterpret prog) (marketData, M.fromList [], M.fromList [], [()])) 0)
+      res `shouldBe` 1 -- (marketData,M.fromList [("EUR_USD",[(1000,1.0000)])], M.fromList [], [()])

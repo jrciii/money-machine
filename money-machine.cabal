@@ -35,6 +35,7 @@ executable money-machine-backtest
 test-suite money-machine-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
+  other-modules:       MoneyMachine.MockTradeInterpreterSpec
   main-is:             Spec.hs
   build-depends:       base
                      , money-machine

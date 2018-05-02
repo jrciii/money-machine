@@ -1,9 +1,9 @@
 module MoneyMachine.MockTradeInterpreter where
 
-import Control.Monad.Trans.Free
-import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Free
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.State
 import qualified Data.Map as M
 import Data.Maybe
 import MoneyMachine.Order
@@ -43,13 +43,12 @@ type StrategyResult = ([OpenOrder], [CancelPendingOrder])
 
 type MockStrategy = TradingState -> StrategyResult
 
--- marketData openPositions closedPositions pendingOrder openOrder cancelPendingOrder error
-type TradingProgram
-   = FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) (State TradingState) ()
-
-mockInterpret :: TradingProgram -> State TradingState ()
+mockInterpret ::
+     (Monad m)
+  => FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) m ()
+  -> StateT TradingState m ()
 mockInterpret prog = do
-  x <- runFreeT prog
+  x <- lift $ runFreeT prog
   case x of
     Free (RunStrategy strategy g) -> do
       tradingState <- get
@@ -61,12 +60,11 @@ mockInterpret prog = do
     Free (CancelPendingOrder cancelOrder next) -> undefined -- TODO implement
     --Free (Hold next) -> mockInterpret next
     Free (TradingThrow error next) -> do
-
       mockInterpret next
     --Free TradingDone -> tradingDone
     Pure r -> return r
 
-mockPlaceOpenOrder :: OpenOrder -> State TradingState ()
+mockPlaceOpenOrder :: (Monad m) => OpenOrder -> StateT TradingState m ()
 mockPlaceOpenOrder MarketOrder {instrument = i, units = u} = do
   let direction = compare u 0
   (md, openPositions, closedPositions, pendingOrders) <- get
@@ -88,18 +86,24 @@ updatePositions ::
   -> [ClosedPositionEntry]
   -> ([OpenPositionEntry], [ClosedPositionEntry])
 updatePositions units bid ask openPositions closedPositions =
-  let (unitsAfterClosing, leftOpen, newlyClosed) = foldr updateOpenPosition (units,[],[])  openPositions
+  let (unitsAfterClosing, leftOpen, newlyClosed) =
+        foldr updateOpenPosition (units, [], []) openPositions
       tradeDirection u = compare u 0
-      closePrice = case compare units 0 of
-        LT -> bid
-        _ -> ask
-      updateOpenPosition op@(opUnits,opPrice) (unitsLeft,leftOpen,newlyClosed)
+      closePrice =
+        case compare units 0 of
+          LT -> bid
+          _ -> ask
+      updateOpenPosition op@(opUnits, opPrice) (unitsLeft, leftOpen, newlyClosed)
         | unitsLeft == 0 || tradeDirection unitsLeft == tradeDirection opUnits =
-            (0,op : leftOpen,newlyClosed)
+          (0, op : leftOpen, newlyClosed)
         | abs unitsLeft >= abs opUnits =
-            (unitsLeft + opUnits, leftOpen, (opUnits,opPrice,closePrice) : newlyClosed)
+          ( unitsLeft + opUnits
+          , leftOpen
+          , (opUnits, opPrice, closePrice) : newlyClosed)
         | otherwise =
-            (0, (unitsLeft + opUnits, opPrice) : leftOpen, (unitsLeft,opPrice,closePrice) : newlyClosed)
+          ( 0
+          , (unitsLeft + opUnits, opPrice) : leftOpen
+          , (unitsLeft, opPrice, closePrice) : newlyClosed)
   in if unitsAfterClosing == 0
-        then (leftOpen, newlyClosed)
-        else ((unitsAfterClosing,closePrice) : leftOpen, newlyClosed)
+       then (leftOpen, newlyClosed)
+       else ((unitsAfterClosing, closePrice) : leftOpen, newlyClosed)
