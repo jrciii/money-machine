@@ -12,9 +12,6 @@ import MoneyMachine.MockTradeInterpreter
 main :: IO ()
 main = hspec spec
 
---   newtype MockStrategy = MockStrategy
---     { runMockStrategy :: TradingState -> StrategyResult
---     }
 openMarketOrderStrategy :: MockStrategy
 openMarketOrderStrategy (md, op, cp, po) =
     let (inst, _) = head $ M.toList md

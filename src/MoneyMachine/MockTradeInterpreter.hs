@@ -21,7 +21,6 @@ type Price = Double
 
 type Instrument = String
 
--- marketData position pendingOrder openOrder cancelPendingOrder error next
 type MarketData = M.Map Instrument [(Bid, Ask)]
 
 type OpenPositionEntry = (Units, Price)
