@@ -11,14 +11,10 @@ trade ::
                                                                       , [cancelPendingOrder]))
   -> m Bool
   -> FreeT (TradingDSL marketData openPositions closedPositions pendingOrder openOrder cancelPendingOrder error) m ()
-trade strategy shouldTrade = do
-  x <- lift shouldTrade
-  if x
-    then do
+trade strategy shouldTrade =
+  whileM_ (lift shouldTrade) $ do
       orders <- runStrategy strategy
       executeOrders orders
-      trade strategy shouldTrade
-    else pure ()
 
 executeOrders ::
      (Monad m)
