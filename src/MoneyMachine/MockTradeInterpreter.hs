@@ -86,7 +86,6 @@ mockPlaceOpenOrder MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
   let newOpenPositions = M.insert i updatedOpenPositions openPositions
   let newClosedPositions = M.insert i updatedClosedPositions closedPositions
   put (md, newOpenPositions, newClosedPositions, pendingOrders)
-mockPlaceOpenOrder _ = pure () -- TODO implement opening other types of orders
 
 updatePositions ::
      Units

@@ -18,7 +18,7 @@ spec =
     it "opens market orders from strategies" $ do
       let openMarketOrderStrategy (md, op, cp, po) =
             let (inst, _) = head $ M.toList md
-            in ([MarketOrder {marketOrderUnits = 1000, marketOrderInstrument = inst}], [])
+            in ([MarketOrder {marketOrderUnits = 1000, marketOrderInstrument = inst}], [], [])
       let shouldTrade = fmap (/= 2) (modify (+ 1) >> get)
       let marketData = M.fromList [("EUR_USD", [(1.0002, 1.0000)])]
       let prog = trade openMarketOrderStrategy shouldTrade
