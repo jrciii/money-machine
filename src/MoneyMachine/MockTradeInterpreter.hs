@@ -1,15 +1,16 @@
 module MoneyMachine.MockTradeInterpreter where
 
+import Control.Lens
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Free
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
 import qualified Data.Map as M
 import Data.Maybe
+import Debug.Trace
 import MoneyMachine.Order
 import MoneyMachine.Trade
 import MoneyMachine.TradingDSL
-import Debug.Trace
 
 type Bid = Double
 
@@ -33,8 +34,6 @@ type ClosedPositions = M.Map Instrument [ClosedPositionEntry]
 
 type CancelPendingOrder = ()
 
-type PendingOrder = ()
-
 type Error = String
 
 type TradingState = (MarketData, OpenPositions, ClosedPositions, [PendingOrder])
@@ -43,29 +42,40 @@ type StrategyResult = ([OpenOrder], [CancelPendingOrder])
 
 type MockStrategy = TradingState -> StrategyResult
 
+newtype MarketState = MarketState
+  { getMarketState :: M.Map Instrument (Bid, Ask)
+  }
+
 mockInterpret ::
      (Monad m)
-  => FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) m ()
+  => (MarketData -> MarketData)
+  -> FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) m ()
   -> StateT TradingState m ()
-mockInterpret prog = do
+mockInterpret market prog = do
+  (md, openPositions, closedPositions, pendingOrders) <- get
+  let newMarketData = market md
+  let (newOpenOrders, remainingPendingOrders) =
+        checkPendingOrdersAgainstMarket newMarketData pendingOrders
+  put (md, openPositions, closedPositions, remainingPendingOrders)
+  mapM_ mockPlaceOpenOrder newOpenOrders
   x <- lift $ runFreeT prog
   case x of
     Free (RunStrategy strategy g) -> do
       tradingState <- get
       let strategyResult = strategy tradingState
-      mockInterpret (g strategyResult)
+      mockInterpret market (g strategyResult)
     Free (OpenOrder openOrder next) -> do
       mockPlaceOpenOrder openOrder
-      mockInterpret next
+      mockInterpret market next
     Free (CancelPendingOrder cancelOrder next) -> undefined -- TODO implement
     --Free (Hold next) -> mockInterpret next
     Free (TradingThrow error next) -> do
-      mockInterpret next
+      mockInterpret market next
     --Free TradingDone -> tradingDone
     Pure r -> return r
 
 mockPlaceOpenOrder :: (Monad m) => OpenOrder -> StateT TradingState m ()
-mockPlaceOpenOrder MarketOrder {instrument = i, units = u} = do
+mockPlaceOpenOrder MarketOrder {marketOrderInstrument = i, marketOrderUnits = u} = do
   let direction = compare u 0
   (md, openPositions, closedPositions, pendingOrders) <- get
   let (bid, ask) = head $ fromJust $ M.lookup i md
@@ -107,3 +117,37 @@ updatePositions units bid ask openPositions closedPositions =
   in if unitsAfterClosing == 0
        then (leftOpen, newlyClosed)
        else ((unitsAfterClosing, closePrice) : leftOpen, newlyClosed)
+
+checkPendingOrdersAgainstMarket ::
+     MarketData -> [PendingOrder] -> ([OpenOrder], [PendingOrder])
+checkPendingOrdersAgainstMarket marketData pendingOrders =
+  foldr
+    (\po (os, pos) ->
+       maybe
+         (os, po : pos)
+         (\oe -> (oe : os, pos))
+         (checkPendingOrderAgainstMarket marketData po))
+    ([], [])
+    pendingOrders
+
+checkPendingOrderAgainstMarket :: MarketData -> PendingOrder -> Maybe OpenOrder
+checkPendingOrderAgainstMarket marketData po =
+  let (i, u, tp, ot) = getPendingOrderInfo po
+      (bid, ask) = head $ fromJust $ M.lookup i marketData
+  in case ot of
+       BuyStop
+         | ask >= tp ->
+           Just MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
+         | otherwise -> Nothing
+       BuyLimit
+         | ask <= tp ->
+           Just MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
+         | otherwise -> Nothing
+       SellStop
+         | bid <= tp ->
+           Just MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
+         | otherwise -> Nothing
+       SellLimit
+         | bid >= tp ->
+           Just MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
+         | otherwise -> Nothing
