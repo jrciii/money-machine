@@ -67,6 +67,9 @@ mockInterpret market prog = do
     Free (OpenOrder openOrder next) -> do
       mockPlaceOpenOrder openOrder
       mockInterpret market next
+    Free (OpenPendingOrder pendingOrder next) -> do
+      mockPlacePendingOrder pendingOrder
+      mockInterpret market next
     Free (CancelPendingOrder cancelOrder next) -> undefined -- TODO implement
     --Free (Hold next) -> mockInterpret next
     Free (TradingThrow error next) -> do
@@ -86,6 +89,11 @@ mockPlaceOpenOrder MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
   let newOpenPositions = M.insert i updatedOpenPositions openPositions
   let newClosedPositions = M.insert i updatedClosedPositions closedPositions
   put (md, newOpenPositions, newClosedPositions, pendingOrders)
+
+mockPlacePendingOrder :: (Monad m) => PendingOrder -> StateT TradingState m ()
+mockPlacePendingOrder po = do
+    (md, o, c, pe) <- get
+    put (md, o, c, po : pe)
 
 updatePositions ::
      Units
