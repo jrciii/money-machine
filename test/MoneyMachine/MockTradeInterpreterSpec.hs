@@ -3,6 +3,7 @@ module MoneyMachine.MockTradeInterpreterSpec where
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
 import Data.Either
+import Data.Functor.Identity
 import qualified Data.Map as M
 import Test.Hspec
 import Test.QuickCheck
@@ -28,12 +29,15 @@ spec =
       let shouldTrade = lift $ fmap (/= 2) (modify (+ 1) >> get)
       let marketData = M.fromList [("EUR_USD", [(1.0000, 1.0002)])]
       let prog = trade openMarketOrderStrategy shouldTrade (modify id >> get)
-      res <-
-        evalStateT
-          (evalStateT
-             (execStateT (mockInterpret prog) (undefined, M.empty, M.empty, []))
-             marketData)
-          0
+      let res =
+            runIdentity $
+            evalStateT
+              (evalStateT
+                 (execStateT
+                    (mockInterpret prog)
+                    (undefined, M.empty, M.empty, []))
+                 marketData)
+              0
       res `shouldBe`
         ( marketData
         , M.fromList [("EUR_USD", [(1000, 1.0002)])]
@@ -62,12 +66,15 @@ spec =
               openOneMarketLongAndOneTakeProfitStrategy
               shouldTrade
               marketModifier
-      res <-
-        evalStateT
-          (evalStateT
-             (execStateT (mockInterpret prog) (undefined, M.empty, M.empty, []))
-             marketData)
-          0
+      let res =
+            runIdentity $
+            evalStateT
+              (evalStateT
+                 (execStateT
+                    (mockInterpret prog)
+                    (undefined, M.empty, M.empty, []))
+                 marketData)
+              0
       res `shouldBe`
         ( M.fromList [("EUR_USD", [(1.0003, 1.0005)])]
         , M.fromList [("EUR_USD", [])]
