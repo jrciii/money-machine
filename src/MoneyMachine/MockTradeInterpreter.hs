@@ -51,16 +51,11 @@ mockInterpret ::
   => FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) m ()
   -> StateT TradingState m ()
 mockInterpret prog = do
-  (md,openPositions, closedPositions, pendingOrders) <- get
-  let (newOpenOrders, remainingPendingOrders) =
-        checkPendingOrdersAgainstMarket md pendingOrders
-  put (md, openPositions, closedPositions, remainingPendingOrders)
-  mapM_ mockPlaceOpenOrder newOpenOrders
   x <- lift $ runFreeT prog
   case x of
     Free (RunStrategy strategy g) -> do
-      (md,o,c,p) <- get
-      let strategyResult = strategy (md,o,c,p)
+      tradingState <- get
+      let strategyResult = strategy tradingState
       mockInterpret (g strategyResult)
     Free (OpenOrder openOrder next) -> do
       mockPlaceOpenOrder openOrder
@@ -70,12 +65,14 @@ mockInterpret prog = do
       mockInterpret next
     Free (CancelPendingOrder cancelOrder next) -> undefined -- TODO implement
     Free (SetMarketData marketData next) -> do
-        modify $ _1 .~ marketData
-        mockInterpret next
-    --Free (Hold next) -> mockInterpret next
-    Free (TradingThrow error next) -> do
+      modify $ _1 .~ marketData
+      (md, openPositions, closedPositions, pendingOrders) <- get
+      let (newOpenOrders, remainingPendingOrders) =
+              checkPendingOrdersAgainstMarket md pendingOrders
+      put (md, openPositions, closedPositions, remainingPendingOrders)
+      mapM_ mockPlaceOpenOrder newOpenOrders
       mockInterpret next
-    --Free TradingDone -> tradingDone
+    Free (TradingThrow error next) -> mockInterpret next
     Pure r -> return r
 
 mockPlaceOpenOrder :: (Monad m) => OpenOrder -> StateT TradingState m ()
@@ -93,8 +90,8 @@ mockPlaceOpenOrder MarketOrder {marketOrderInstrument = i, marketOrderUnits = u}
 
 mockPlacePendingOrder :: (Monad m) => PendingOrder -> StateT TradingState m ()
 mockPlacePendingOrder po = do
-    (md, o, c, pe) <- get
-    put (md, o, c, po : pe)
+  (md, o, c, pe) <- get
+  put (md, o, c, po : pe)
 
 updatePositions ::
      Units
@@ -128,7 +125,7 @@ updatePositions units bid ask openPositions closedPositions =
 
 checkPendingOrdersAgainstMarket ::
      MarketData -> [PendingOrder] -> ([OpenOrder], [PendingOrder])
-checkPendingOrdersAgainstMarket marketData pendingOrders =
+checkPendingOrdersAgainstMarket marketData =
   foldr
     (\po (os, pos) ->
        maybe
@@ -136,7 +133,6 @@ checkPendingOrdersAgainstMarket marketData pendingOrders =
          (\oe -> (oe : os, pos))
          (checkPendingOrderAgainstMarket marketData po))
     ([], [])
-    pendingOrders
 
 checkPendingOrderAgainstMarket :: MarketData -> PendingOrder -> Maybe OpenOrder
 checkPendingOrderAgainstMarket marketData po =

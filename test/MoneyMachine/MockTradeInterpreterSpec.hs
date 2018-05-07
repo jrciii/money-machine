@@ -28,7 +28,7 @@ spec =
                , [])
       let shouldTrade = lift $ fmap (/= 2) (modify (+ 1) >> get)
       let marketData = M.fromList [("EUR_USD", [(1.0000, 1.0002)])]
-      let prog = trade openMarketOrderStrategy shouldTrade (modify id >> get)
+      let prog = trade openMarketOrderStrategy shouldTrade get
       let res =
             runIdentity $
             evalStateT
