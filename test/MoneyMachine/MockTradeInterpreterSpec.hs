@@ -1,7 +1,7 @@
 module MoneyMachine.MockTradeInterpreterSpec where
 
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.State.Lazy
+import Control.Monad.Trans.State.Strict
 import Data.Either
 import Data.Functor.Identity
 import qualified Data.Map as M
