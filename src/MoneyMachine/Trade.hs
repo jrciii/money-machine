@@ -11,9 +11,12 @@ trade ::
                                                                       , [pendingOrder]
                                                                       , [cancelPendingOrder]))
   -> m Bool
+  -> m marketData
   -> FreeT (TradingDSL marketData openPositions closedPositions pendingOrder openOrder cancelPendingOrder error) m ()
-trade strategy shouldTrade =
+trade strategy shouldTrade market =
   whileM_ (lift shouldTrade) $ do
+      marketData <- lift market
+      setMarketData marketData
       orders <- runStrategy strategy
       executeOrders orders
 

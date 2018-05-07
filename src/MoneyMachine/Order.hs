@@ -9,7 +9,7 @@ module MoneyMachine.Order
 data OpenOrder = MarketOrder
   { marketOrderInstrument :: String
   , marketOrderUnits :: Int
-  }
+  } deriving Show
 
 data PendingOrderType
   = BuyLimit

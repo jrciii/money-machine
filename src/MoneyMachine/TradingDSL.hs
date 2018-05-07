@@ -11,6 +11,7 @@ data TradingDSL marketData openPositions closedPositions pendingOrder openOrder 
     | OpenOrder openOrder next
     | OpenPendingOrder pendingOrder next
     | CancelPendingOrder cancelPendingOrder next
+    | SetMarketData marketData next
     | Hold next
     | TradingThrow error next
     | PrintLine String next
@@ -23,3 +24,4 @@ openPendingOrder pendingOrder = liftF (OpenPendingOrder pendingOrder ())
 cancelPendingOrder order = liftF (CancelPendingOrder order ())
 tradingThrow error = liftF (TradingThrow error ())
 tradingPrintLine line = liftF (PrintLine line ())
+setMarketData marketData = liftF (SetMarketData marketData ())

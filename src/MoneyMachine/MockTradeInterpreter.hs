@@ -5,9 +5,9 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Free
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Data.Maybe
-import Debug.Trace
+import MoneyMachine.Debug
 import MoneyMachine.Order
 import MoneyMachine.Trade
 import MoneyMachine.TradingDSL
@@ -48,32 +48,33 @@ newtype MarketState = MarketState
 
 mockInterpret ::
      (Monad m)
-  => (MarketData -> MarketData)
-  -> FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) m ()
+  => FreeT (TradingDSL MarketData OpenPositions ClosedPositions PendingOrder OpenOrder CancelPendingOrder Error) m ()
   -> StateT TradingState m ()
-mockInterpret market prog = do
-  (md, openPositions, closedPositions, pendingOrders) <- get
-  let newMarketData = market md
+mockInterpret prog = do
+  (md,openPositions, closedPositions, pendingOrders) <- get
   let (newOpenOrders, remainingPendingOrders) =
-        checkPendingOrdersAgainstMarket newMarketData pendingOrders
+        checkPendingOrdersAgainstMarket md pendingOrders
   put (md, openPositions, closedPositions, remainingPendingOrders)
-  mapM_ mockPlaceOpenOrder newOpenOrders
+  mapM_ mockPlaceOpenOrder (traceThis newOpenOrders)
   x <- lift $ runFreeT prog
   case x of
     Free (RunStrategy strategy g) -> do
-      tradingState <- get
-      let strategyResult = strategy tradingState
-      mockInterpret market (g strategyResult)
+      (md,o,c,p) <- get
+      let strategyResult = strategy (md,o,c,p)
+      mockInterpret (g strategyResult)
     Free (OpenOrder openOrder next) -> do
       mockPlaceOpenOrder openOrder
-      mockInterpret market next
+      mockInterpret next
     Free (OpenPendingOrder pendingOrder next) -> do
       mockPlacePendingOrder pendingOrder
-      mockInterpret market next
+      mockInterpret next
     Free (CancelPendingOrder cancelOrder next) -> undefined -- TODO implement
+    Free (SetMarketData marketData next) -> do
+        modify $ _1 .~ marketData
+        mockInterpret next
     --Free (Hold next) -> mockInterpret next
     Free (TradingThrow error next) -> do
-      mockInterpret market next
+      mockInterpret next
     --Free TradingDone -> tradingDone
     Pure r -> return r
 
@@ -81,7 +82,7 @@ mockPlaceOpenOrder :: (Monad m) => OpenOrder -> StateT TradingState m ()
 mockPlaceOpenOrder MarketOrder {marketOrderInstrument = i, marketOrderUnits = u} = do
   let direction = compare u 0
   (md, openPositions, closedPositions, pendingOrders) <- get
-  let (bid, ask) = head $ fromJust $ M.lookup i md
+  let (bid, ask) = traceThis $ head $ fromJust $ M.lookup i md
   let openEntries = M.findWithDefault [] i openPositions
   let closedEntries = M.findWithDefault [] i closedPositions
   let (updatedOpenPositions, updatedClosedPositions) =
@@ -116,11 +117,11 @@ updatePositions units bid ask openPositions closedPositions =
         | abs unitsLeft >= abs opUnits =
           ( unitsLeft + opUnits
           , leftOpen
-          , (opUnits, opPrice, closePrice) : newlyClosed)
+          , (opUnits, traceThis opPrice, closePrice) : newlyClosed)
         | otherwise =
           ( 0
           , (unitsLeft + opUnits, opPrice) : leftOpen
-          , (unitsLeft, opPrice, closePrice) : newlyClosed)
+          , (unitsLeft, traceThis opPrice, closePrice) : newlyClosed)
   in if unitsAfterClosing == 0
        then (leftOpen, newlyClosed)
        else ((unitsAfterClosing, closePrice) : leftOpen, newlyClosed)
