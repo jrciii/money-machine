@@ -55,7 +55,7 @@ mockInterpret prog = do
   let (newOpenOrders, remainingPendingOrders) =
         checkPendingOrdersAgainstMarket md pendingOrders
   put (md, openPositions, closedPositions, remainingPendingOrders)
-  mapM_ mockPlaceOpenOrder (traceThis newOpenOrders)
+  mapM_ mockPlaceOpenOrder newOpenOrders
   x <- lift $ runFreeT prog
   case x of
     Free (RunStrategy strategy g) -> do
@@ -82,7 +82,7 @@ mockPlaceOpenOrder :: (Monad m) => OpenOrder -> StateT TradingState m ()
 mockPlaceOpenOrder MarketOrder {marketOrderInstrument = i, marketOrderUnits = u} = do
   let direction = compare u 0
   (md, openPositions, closedPositions, pendingOrders) <- get
-  let (bid, ask) = traceThis $ head $ fromJust $ M.lookup i md
+  let (bid, ask) = head $ fromJust $ M.lookup i md
   let openEntries = M.findWithDefault [] i openPositions
   let closedEntries = M.findWithDefault [] i closedPositions
   let (updatedOpenPositions, updatedClosedPositions) =
@@ -117,11 +117,11 @@ updatePositions units bid ask openPositions closedPositions =
         | abs unitsLeft >= abs opUnits =
           ( unitsLeft + opUnits
           , leftOpen
-          , (opUnits, traceThis opPrice, closePrice) : newlyClosed)
+          , (opUnits, opPrice, closePrice) : newlyClosed)
         | otherwise =
           ( 0
           , (unitsLeft + opUnits, opPrice) : leftOpen
-          , (unitsLeft, traceThis opPrice, closePrice) : newlyClosed)
+          , (unitsLeft, opPrice, closePrice) : newlyClosed)
   in if unitsAfterClosing == 0
        then (leftOpen, newlyClosed)
        else ((unitsAfterClosing, closePrice) : leftOpen, newlyClosed)
